@@ -1,105 +1,131 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-from sklearn.metrics import confusion_matrix
-import joblib
 
+# 1. KONFIGURASI HALAMAN
+st.set_page_config(page_title="Skripsi Bagas - Maxim Analisis", layout="wide")
+
+# 2. FUNGSI LOAD ASSETS (Model & Data)
 @st.cache_resource
 def load_assets():
-    # Gunakan joblib.load bukan pickle.load
+    # Load dataset
+    df = pd.read_csv('maxim_reviews.csv')
+    # Pelabelan untuk visualisasi dashboard
+    df['label'] = df['score'].apply(lambda x: 'Puas' if x >= 4 else ('Netral' if x == 3 else 'Tidak Puas'))
+    
+    # Load Model menggunakan joblib (Lebih stabil untuk Cloud)
+    # Pastikan nama file ini sesuai dengan yang ada di GitHub kamu
     model_xgb = joblib.load('model_xgb.pkl')
     model_rf = joblib.load('model_rf.pkl')
     tfidf = joblib.load('tfidf_vectorizer.pkl')
     
-    df = pd.read_csv('maxim_reviews.csv')
-    df['label'] = df['score'].apply(lambda x: 'Puas' if x >= 4 else ('Netral' if x == 3 else 'Tidak Puas'))
-    return df, model_xgb, model_rf, tfidf
-# Konfigurasi Halaman
-st.set_page_config(page_title="Skripsi Bagas - Maxim", layout="wide")
-
-# Fungsi Load Assets
-@st.cache_resource
-def load_assets():
-    df = pd.read_csv('maxim_reviews.csv')
-    df['label'] = df['score'].apply(lambda x: 'Puas' if x >= 4 else ('Netral' if x == 3 else 'Tidak Puas'))
-    
-    # Load Model (Pastikan file ini ada di GitHub Anda)
-    model_xgb = pickle.load(open('model_xgb.pkl', 'rb'))
-    model_rf = pickle.load(open('model_rf.pkl', 'rb'))
-    tfidf = pickle.load(open('tfidf_vectorizer.pkl', 'rb'))
     return df, model_xgb, model_rf, tfidf
 
-# Menangani error jika file pkl belum ada
+# Menjalankan fungsi load_assets
 try:
     df, xgb, rf, tfidf = load_assets()
-except FileNotFoundError:
-    st.error("File Model (.pkl) tidak ditemukan di GitHub! Pastikan Anda sudah menguploadnya.")
+except Exception as e:
+    st.error(f"Gagal memuat file: {e}")
+    st.info("Pastikan file maxim_reviews.csv, model_xgb.pkl, model_rf.pkl, dan tfidf_vectorizer.pkl sudah ada di GitHub.")
     st.stop()
 
-# --- SIDEBAR ---
+# 3. SIDEBAR NAVIGASI
 with st.sidebar:
     st.title("Menu Utama")
-    menu = st.radio("Pilih Halaman:", ["Dashboard", "Dataset", "Model Klasifikasi", "Implementasi Algoritma"])
+    st.markdown("---")
+    menu = st.radio("Pilih Halaman:", 
+                    ["📊 Dashboard", "📂 Dataset", "🧠 Model Klasifikasi", "⚖️ Implementasi Algoritma"])
+    st.markdown("---")
+    st.write("**Oleh:** Bagas Dwi Ardianto")
+    st.write("**NIM:** 217006516109")
 
-# --- MENU 1: DASHBOARD ---
-if menu == "Dashboard":
+# --- HALAMAN 1: DASHBOARD ---
+if menu == "📊 Dashboard":
     st.title("📈 Visualisasi Data Maxim")
-    c1, c2 = st.columns(2)
+    st.write("Halaman ini menampilkan gambaran umum sebaran data ulasan pengguna.")
+    
+    c1, c2 = st.columns([2, 1])
     with c1:
         st.subheader("Distribusi Sentimen")
-        fig, ax = plt.subplots()
-        sns.countplot(x='label', data=df, palette='magma', ax=ax)
+        fig, ax = plt.subplots(figsize=(8, 4))
+        sns.countplot(x='label', data=df, palette='viridis', ax=ax)
+        plt.xlabel("Kategori")
+        plt.ylabel("Jumlah Ulasan")
         st.pyplot(fig)
+    
     with c2:
         st.subheader("Statistik Dataset")
-        st.write(f"Total Data: **{len(df)}** baris")
-        st.write("Target: **Tingkat Kepuasan**")
-        st.write("Fitur: **Ulasan Teks**")
+        st.metric("Total Data", f"{len(df)} Ulasan")
+        st.write("Data diambil dari: *Google Play Store*")
+        st.write("Kategori: *Multi-class (3 Label)*")
 
-# --- MENU 2: DATASET ---
-elif menu == "Dataset":
+# --- HALAMAN 2: DATASET ---
+elif menu == "📂 Dataset":
     st.title("📂 Dataset Mentah")
+    st.write("Menampilkan data ulasan aplikasi Maxim yang digunakan dalam penelitian.")
     st.dataframe(df[['userName', 'score', 'content', 'label']], use_container_width=True)
 
-# --- MENU 3: MODEL KLASIFIKASI ---
-elif menu == "Model Klasifikasi":
+# --- HALAMAN 3: MODEL KLASIFIKASI ---
+elif menu == "🧠 Model Klasifikasi":
     st.title("🧠 Penjelasan Algoritma")
-    st.info("**XGBoost:** Algoritma Gradient Boosting yang efisien. Menggunakan prinsip perbaikan kesalahan secara berurutan.")
-    st.warning("**Random Forest:** Algoritma Ensemble berbasis Bagging. Membangun banyak pohon keputusan dan mengambil voting terbanyak.")
-
-# --- MENU 4: IMPLEMENTASI ---
-elif menu == "Implementasi Algoritma":
-    st.title("⚖️ Performa & Uji Coba")
     
-    # 1. Tabel Metrik (Input dari hasil skripsi Anda)
-    st.subheader("Metrik Evaluasi")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.info("### XGBoost")
+        st.write("""
+        **Extreme Gradient Boosting** adalah algoritma yang memperbaiki kesalahan 
+        prediksi dari pohon keputusan sebelumnya secara berurutan. 
+        Sangat efektif untuk data teks yang kompleks.
+        """)
+    
+    with col_b:
+        st.warning("### Random Forest")
+        st.write("""
+        **Random Forest** membangun banyak pohon keputusan secara acak dan mandiri, 
+        lalu mengambil hasil keputusan terbanyak (voting). 
+        Stabil namun terkadang kalah akurasi dibanding boosting.
+        """)
+
+# --- HALAMAN 4: IMPLEMENTASI ---
+elif menu == "⚖️ Implementasi Algoritma":
+    st.title("⚖️ Performa & Uji Coba Model")
+    
+    # Menampilkan Tabel Metrik sesuai Skripsi
+    st.subheader("Metrik Evaluasi (Hasil Pengujian)")
     metrics_data = {
         'Metrik': ['Akurasi', 'Presisi', 'Recall', 'F1-Score'],
-        'XGBoost': [0.93, 0.88, 0.93, 0.90],
-        'Random Forest': [0.80, 0.73, 0.80, 0.77]
+        'XGBoost': ["0.93", "0.88", "0.93", "0.90"],
+        'Random Forest': ["0.80", "0.73", "0.80", "0.77"]
     }
     st.table(pd.DataFrame(metrics_data))
 
-    # 2. Live Testing
     st.divider()
-    st.subheader("🔍 Uji Coba Prediksi")
-    teks_input = st.text_area("Masukkan ulasan untuk diuji:")
-    pilih_model = st.selectbox("Pilih Algoritma", ["XGBoost", "Random Forest"])
+
+    # Fitur Live Testing
+    st.subheader("🔍 Live Testing (Uji Coba Ulasan)")
+    user_text = st.text_area("Masukkan teks ulasan pelanggan:")
+    model_choice = st.selectbox("Pilih Model untuk Prediksi:", ["XGBoost", "Random Forest"])
     
-    if st.button("Analisis"):
-        if teks_input:
-            # Preprocessing
-            clean_text = re.sub(r'[^a-z\s]', '', teks_input.lower())
-            vectorized_text = tfidf.transform([clean_text])
+    if st.button("Analisis Sentimen"):
+        if user_text:
+            # 1. Preprocessing (Cleaning)
+            cleaned = re.sub(r'[^a-z\s]', '', user_text.lower())
+            # 2. Transform ke TF-IDF
+            vec = tfidf.transform([cleaned])
             
-            # Predict
-            if pilih_model == "XGBoost":
-                pred = xgb.predict(vectorized_text)[0]
+            # 3. Prediksi
+            if model_choice == "XGBoost":
+                res = xgb.predict(vec)[0]
             else:
-                pred = rf.predict(vectorized_text)[0]
+                res = rf.predict(vec)[0]
             
-            mapping = {0: "Tidak Puas ❌", 1: "Netral 😐", 2: "Puas ✅"}
-            st.success(f"Hasil Prediksi ({pilih_model}): **{mapping[pred]}**")
+            # 4. Mapping Label (0: Tidak Puas, 1: Netral, 2: Puas)
+            # Pastikan urutan ini sesuai dengan LabelEncoder saat training
+            labels = {0: "Tidak Puas ❌", 1: "Netral 😐", 2: "Puas ✅"}
+            
+            st.markdown(f"### Hasil Prediksi: **{labels[res]}**")
+        else:
+            st.warning("Mohon masukkan teks terlebih dahulu!")
