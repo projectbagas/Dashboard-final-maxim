@@ -5,7 +5,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import re
 from sklearn.metrics import confusion_matrix
+import joblib
 
+@st.cache_resource
+def load_assets():
+    # Gunakan joblib.load bukan pickle.load
+    model_xgb = joblib.load('model_xgb.pkl')
+    model_rf = joblib.load('model_rf.pkl')
+    tfidf = joblib.load('tfidf_vectorizer.pkl')
+    
+    df = pd.read_csv('maxim_reviews.csv')
+    df['label'] = df['score'].apply(lambda x: 'Puas' if x >= 4 else ('Netral' if x == 3 else 'Tidak Puas'))
+    return df, model_xgb, model_rf, tfidf
 # Konfigurasi Halaman
 st.set_page_config(page_title="Skripsi Bagas - Maxim", layout="wide")
 
